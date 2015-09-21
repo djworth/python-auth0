@@ -36,10 +36,12 @@ class Client(object):
         }
         jti = hashlib.md5(json.dumps(payload)).hexdigest()
         payload["jti"] = jti
-        payload["exp"] = t + lifetime
         payload["aud"] = self.client_id
 
         token = jwt.encode(payload, self.client_secret, algorithm='HS256')
+
+        print payload
+        print token
 
         return JWTAuth(token)
 
@@ -47,8 +49,7 @@ class Client(object):
         pass
 
     def get_rules(self):
-        print "{}/v2/rules".format(self.api_url)
-        response = requests.get("{}/v2/rules".format(self.api_url), auth=self.auth(["rules:read"]))
+        response = requests.get("{}/v2/rules".format(self.api_url), auth=self.auth({"rules":{"actions":["read"]}}))
         return response.json()
 
     def update_rule(self, rule):
