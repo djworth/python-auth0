@@ -1,12 +1,15 @@
 import base64
 import hashlib
 import json
-import time
+import datetime
+
+from calendar import timegm
 
 import jwt
 import requests
 from requests.auth import AuthBase
 
+from auth0 import __version__
 
 class JWTAuth(AuthBase):
     """Attaches JSON Web Token to the given Request object."""
@@ -17,21 +20,23 @@ class JWTAuth(AuthBase):
     def __call__(self, r):
         # modify and return the request
         r.headers['Authorization'] = "Bearer {}".format(self.token)
+        r.headers['Auth0-Client'] = "python-auth0 {}".format(__version__)
         return r
 
 class Client(object):
 
     def __init__(self, domain, client_id, client_secret):
-        self.client_id = client_id
-        self.client_secret = client_secret
         self.domain = domain
+        self.client_id = client_id
+        self.client_secret = base64.urlsafe_b64decode(client_secret)
         self.base_url = "https://{}".format(self.domain)
         self.api_url = "{}/api".format(self.base_url)
 
     def auth(self, scopes, lifetime=36000):
-        t = int(time.time())
+        now = datetime.datetime.now()
+
         payload = {
-            "iat": t,
+            "iat": timegm(now.utctimetuple()),
             "scopes": scopes
         }
         jti = hashlib.md5(json.dumps(payload)).hexdigest()
@@ -40,35 +45,65 @@ class Client(object):
 
         token = jwt.encode(payload, self.client_secret, algorithm='HS256')
 
-        print payload
-        print token
-
         return JWTAuth(token)
 
     def get_rule(self, rule_name):
         pass
 
     def get_rules(self):
-        response = requests.get("{}/v2/rules".format(self.api_url), auth=self.auth({"rules":{"actions":["read"]}}))
+        scope = {
+            "rules": {
+                "actions": ["read"]
+            }
+        }
+        response = requests.get("{}/v2/rules".format(self.api_url), auth=self.auth(scope))
         return response.json()
 
-    def update_rule(self, rule):
-        pass
+    def get_rule(self, _id, fields=None, include_fields=True):
+        scope = {
+            "rules": {
+                "actions": ["read"]
+            }
+        }
 
-    def delete_rule(self, rule_name):
-        pass
+        if fields:
+            params = {
+                "fields": fields,
+                "include_fields": include_fields
+            }
 
-    def create_rule(self, rule):
-        pass
+        response = requests.get("{}/v2/rules/{}".format(self.api_url, _id), params=params, auth=self.auth(scope))
+        return response.json()
 
-    def get_connections(self):
-        pass
 
-    def get_social_connections(self):
-        pass
+    def create_rule(self, body):
+        scope = {
+            "rules": {
+                "actions": ["create"]
+            }
+        }
 
-    def get_enterprise_connections(self):
-        pass
+        response = requests.post("{}/v2/rules".format(self.api_url), body=body, auth=self.auth(scope))
+        return response.json()
+
+    def delete_rule(self, _id):
+        scope = {
+            "rules": {
+                "actions": ["delete"]
+            }
+        }
+
+        response = requests.delete("{}/v2/rules/{}".format(self.api_url, _id), auth=self.auth(scope))
+        return response.json()
+
+    def update_rule(self, _id, body):
+        scope = {
+            "rules": {
+                "actions": ["update"]
+            }
+        }
+        response = requests.patch("{}/v2/rules/{}".format(self.api_url, _id), body=body, auth=self.auth(scope))
+        return response.json()
 
     def get_social_users(self, options):
         pass
@@ -121,35 +156,143 @@ class Client(object):
     def get_strategies(self):
         pass
 
-    def get_connectd(self, name):
-        pass
+    def get_connections(self, strategy=None, fields=None, include_fields=True):
+        scope = {
+            "connections": {
+                "actions": ["read"]
+            }
+        }
 
-    def create_connection(self, connection):
-        pass
+        params = {
+            "strategy": strategy
+        }
+        if fields:
+            params = params.extend({
+                "fields": fields,
+                "include_fields": include_fields
+            })
 
-    def delete_connection(self, name):
-        pass
+        response = requests.get("{}/v2/connections".format(self.api_url), params=params, auth=self.auth(scope))
+        return response.json()
 
-    def update_connection(self, connection):
-        pass
+    def get_connection(self, _id, fields=None, include_fields=True):
+        scope = {
+            "connections": {
+                "actions": ["read"]
+            }
+        }
+
+        if fields:
+            params = {
+                "fields": fields,
+                "include_fields": include_fields
+            }
+
+        response = requests.get("{}/v2/connections/{}".format(self.api_url, _id), params=params, auth=self.auth(scope))
+        return response.json()
+
+
+    def create_connection(self, body):
+        scope = {
+            "connections": {
+                "actions": ["create"]
+            }
+        }
+
+        response = requests.post("{}/v2/connections".format(self.api_url), body=body, auth=self.auth(scope))
+        return response.json()
+
+    def delete_connection(self, _id):
+        scope = {
+            "connections": {
+                "actions": ["delete"]
+            }
+        }
+
+        response = requests.delete("{}/v2/connections/{}".format(self.api_url, _id), auth=self.auth(scope))
+        return response.json()
+
+    def update_connection(self, _id, body):
+        scope = {
+            "connections": {
+                "actions": ["update"]
+            }
+        }
+        response = requests.patch("{}/v2/connections/{}".format(self.api_url, _id), body=body, auth=self.auth(scope))
+        return response.json()
 
     def delete_tenant(self, name):
         pass
 
-    def create_client(self, options):
-        pass
+    def create_client(self, body):
+        scope = {
+            "clients": {
+                "actions": ["create"]
+            }
+        }
+        response = requests.post("{}/v2/clients".format(self.api_url), body=body, auth=self.auth(scope))
+        return response.json()
 
-    def update_client(self, client):
-        pass
+    def update_client(self, _id, body):
+        scope = {
+            "clients": {
+                "actions": ["update"]
+            },
+            "client_keys": {
+                "actions": ["update"]
+            }
+        }
+        response = requests.patch("{}/v2/clients/{}".format(self.api_url, _id), body=body, auth=self.auth(scope))
+        return response.json()
 
-    def delete_client(self, client_id):
-        pass
+    def delete_client(self, _id):
+        scope = {
+            "clients": {
+                "actions": ["delete"]
+            }
+        }
 
-    def get_clients(self, client_id):
-        pass
+        response = requests.delete("{}/v2/clients/{}".format(self.api_url, _id), auth=self.auth(scope))
+        return response.json()
 
-    def getClientsByUserId(self, user_id):
-        pass
+    def get_client(self, _id, fields=None, include_fields=True):
+        scope = {
+            "clients": {
+                "actions": ["read"]
+            },
+            "client_keys": {
+                "actions": ["read"]
+            }
+        }
+
+        if fields:
+            params = {
+                "fields": fields,
+                "include_fields": include_fields
+            }
+
+        response = requests.get("{}/v2/clients/{}".format(self.api_url, _id), params=params, auth=self.auth(scope))
+        return response.json()
+
+    def get_clients(self, fields=None, include_fields=True):
+        scope = {
+            "clients": {
+                "actions": ["read"]
+            },
+            "client_keys": {
+                "actions": ["read"]
+            }
+        }
+
+        params = {}
+        if fields:
+            params = {
+                "fields": fields,
+                "include_fields": include_fields
+            }
+
+        response = requests.get("{}/v2/clients".format(self.api_url), params=params, auth=self.auth(scope))
+        return response.json()
 
     def get_logs(self, options):
         pass
